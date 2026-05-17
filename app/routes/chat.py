@@ -3,12 +3,9 @@ from pydantic import BaseModel
 
 from app.core.security import verify_api_key
 from app.services.rich_dataset import build_rich_company_dataset
-from fastapi import APIRouter, Depends
-from app.core.security import verify_api_key
 
 router = APIRouter()
 
-@router.post("/chat", dependencies=[Depends(verify_api_key)])
 
 class ChatInput(BaseModel):
     company_id: str
@@ -20,19 +17,19 @@ class ChatInput(BaseModel):
 def detect_intent(question: str):
     q = question.lower()
 
-    if any(word in q for word in ["stock", "estoque", "ruptura", "produto"]):
+    if any(word in q for word in ["stock", "estoque", "ruptura", "produto", "produit"]):
         return "stock"
 
     if any(word in q for word in ["venda", "ventes", "sales", "cantina"]):
         return "sales"
 
-    if any(word in q for word in ["lucro", "profit", "benefício", "margem"]):
+    if any(word in q for word in ["lucro", "profit", "benefício", "margem", "bénéfice"]):
         return "profit"
 
-    if any(word in q for word in ["custo", "despesa", "cost", "expense"]):
+    if any(word in q for word in ["custo", "despesa", "cost", "expense", "coût"]):
         return "costs"
 
-    if any(word in q for word in ["risco", "risk", "alerte", "alerta"]):
+    if any(word in q for word in ["risco", "risk", "alerte", "alerta", "risque"]):
         return "risk"
 
     return "general"
