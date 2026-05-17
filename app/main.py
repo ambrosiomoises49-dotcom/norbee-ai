@@ -12,6 +12,7 @@ from app.routes.alerts import router as alerts_router
 from app.routes.ml_analysis import router as ml_analysis_router
 from app.routes.company_ml import router as company_ml_router
 from app.routes.chat import router as chat_router
+from app.routes.proactive_monitoring import router as proactive_monitoring_router
 
 
 
@@ -39,3 +40,8 @@ app.include_router(
     tags=["Company ML Analysis"],
 )
 app.include_router(chat_router, prefix="/api/ai", tags=["AI Chat"])
+app.include_router(
+    proactive_monitoring_router,
+    prefix="/api/ai",
+    tags=["Proactive Monitoring"],
+)

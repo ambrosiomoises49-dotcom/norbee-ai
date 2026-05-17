@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+
+from app.core.security import verify_api_key
 
 from app.services.ml_dataset import build_ml_dataset
 from app.services.rich_dataset import build_rich_company_dataset
 
-from app.ml.smart_forecast import smart_forecast
+from app.feature_store.company_feature_store import build_company_feature_store
+from app.supply_ai.supply_orchestrator import run_supply_ai
+
+from app.ml.forecast_engine_v2 import hybrid_forecast
 from app.ml.anomaly_detection import detect_anomalies
 from app.ml.advanced_anomaly import detect_advanced_anomalies
 from app.ml.risk_score import calculate_ml_risk_score
 from app.ml.trend_analysis import analyze_trend
+from app.agents_v2.orchestrator_v2 import run_orchestrator_v2
+from app.pricing_ai.pricing_orchestrator import run_pricing_ai
 
 from app.decision.advanced_decision_engine import generate_advanced_decisions
 
@@ -15,17 +22,17 @@ from app.memory.ml_memory import (
     compare_with_last_ml_analysis,
     save_ml_analysis,
 )
-from fastapi import APIRouter, Query, Depends
-from app.core.security import verify_api_key
+
+from app.proactive.proactive_monitoring_v2 import generate_proactive_monitoring
+
 
 router = APIRouter()
+
 
 @router.get(
     "/company-ml-analysis/{company_id}",
     dependencies=[Depends(verify_api_key)],
 )
-
-@router.get("/company-ml-analysis/{company_id}")
 async def company_ml_analysis(
     company_id: str,
     days: int = Query(default=30, ge=7, le=365),
@@ -48,20 +55,36 @@ async def company_ml_analysis(
         company_id=company_id,
         days=days,
     )
+    supply_ai = run_supply_ai(
+    rich_dataset=rich_dataset,
+)
+
+    feature_store = build_company_feature_store(
+        dataset=rich_dataset,
+        ml_dataset=dataset,
+    )
+    pricing_ai = run_pricing_ai(
+    rich_dataset=rich_dataset,
+    feature_store=feature_store,
+)
 
     sales_history = dataset["sales_history"]
     profit_history = dataset["profit_history"]
     stock_history = dataset["stock_history"]
 
-    sales_forecast = smart_forecast(
+    sales_forecast = hybrid_forecast(
         history=sales_history,
         periods=periods,
     )
 
-    profit_forecast = smart_forecast(
+    profit_forecast = hybrid_forecast(
         history=profit_history,
         periods=periods,
     )
+    forecast_payload = {
+    "sales": sales_forecast,
+    "profit": profit_forecast,
+}
 
     sales_anomalies = detect_anomalies(sales_history)
     profit_anomalies = detect_anomalies(profit_history)
@@ -148,12 +171,21 @@ async def company_ml_analysis(
         risk_score=risk_score,
     )
 
+    multi_agent = run_orchestrator_v2(
+    feature_store=feature_store,
+    rich_dataset=rich_dataset,
+    forecast=forecast_payload,
+)
+
     analysis_result = {
+        "pricing_ai": pricing_ai,
+        "supply_ai": supply_ai,
         "agent": "company_ml_analysis",
         "status": "ok",
         "company_id": company_id,
         "dataset": dataset,
         "rich_dataset": rich_dataset,
+        "feature_store": feature_store,
         "executive_summary": (
             f"Análise ML automática concluída. "
             f"Nível global: {risk_score['label']}. "
@@ -178,6 +210,8 @@ async def company_ml_analysis(
         },
         "recommendations": recommendations,
         "decisions": decisions,
+        "multi_agent": multi_agent,
+        "executive_decisions": multi_agent.get("executive_decisions", []),
     }
 
     memory_comparison = compare_with_last_ml_analysis(
@@ -186,6 +220,24 @@ async def company_ml_analysis(
     )
 
     analysis_result["memory"] = memory_comparison
+
+    proactive_monitoring = generate_proactive_monitoring(
+        feature_store=feature_store,
+        forecast={
+            "sales": sales_forecast,
+            "profit": profit_forecast,
+        },
+        anomalies={
+            "sales": sales_anomalies,
+            "profit": profit_anomalies,
+            "stock": stock_anomalies,
+            "advanced": advanced_anomalies,
+        },
+        decisions=decisions,
+        memory=memory_comparison,
+    )
+
+    analysis_result["proactive_monitoring"] = proactive_monitoring
 
     save_ml_analysis(
         company_id=company_id,
