@@ -15,6 +15,7 @@ from app.routes.chat import router as chat_router
 
 
 
+
 app = FastAPI(
     title="Norbee AI",
     description="Moteur d'intelligence artificielle avancée pour Norbee ERP",
